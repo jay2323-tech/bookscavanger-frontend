@@ -8,9 +8,12 @@ export default function LibraryLoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
     setError("");
+    setLoading(true);
+
     try {
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/login`,
@@ -32,6 +35,8 @@ export default function LibraryLoginPage() {
     } catch (err) {
       console.error(err);
       setError("Server error. Try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -60,9 +65,10 @@ export default function LibraryLoginPage() {
 
         <button
           onClick={handleLogin}
+          disabled={loading}
           className="w-full bg-black text-white p-2 rounded mt-3"
         >
-          Login
+          {loading ? "Logging in..." : "Login"}
         </button>
       </div>
     </main>

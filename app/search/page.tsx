@@ -34,7 +34,7 @@ export default function SearchPage() {
           const lng = pos.coords.longitude;
 
           const res = await fetch(
-            `http://localhost:5000/api/books/search?q=${query}&lat=${lat}&lng=${lng}`
+            `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/books/search?q=${query}&lat=${lat}&lng=${lng}`
           );
 
           if (!res.ok) throw new Error("Failed to fetch results");
