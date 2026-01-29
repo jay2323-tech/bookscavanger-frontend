@@ -15,7 +15,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-[#0F172A] text-[#F8F5F0] flex flex-col items-center justify-center px-4 text-center">
-      <h1 className="text-4xl md:text-5xl text-[#D4AF37] font-serif">LECTÈRE</h1>
+      <h1 className="text-4xl md:text-5xl text-[#D4AF37] font-serif">book Scavanger</h1>
       <p className="mt-4 text-lg md:text-xl">Find books near you</p>
 
       <form onSubmit={handleSearch} className="w-full flex justify-center mt-10">
