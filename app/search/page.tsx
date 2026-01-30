@@ -1,9 +1,9 @@
 import { Suspense } from "react";
 import SearchClient from "./search-client";
 
-export default function SearchPage() {
+export default function Page() {
   return (
-    <Suspense fallback={<div className="p-10 text-white">Loading search…</div>}>
+    <Suspense fallback={<div className="p-10">Loading search…</div>}>
       <SearchClient />
     </Suspense>
   );

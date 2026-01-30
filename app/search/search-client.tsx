@@ -18,7 +18,6 @@ export default function SearchClient() {
 
   const fetchBooks = async () => {
     if (!query) return;
-
     setLoading(true);
     setError("");
 
@@ -37,7 +36,7 @@ export default function SearchClient() {
             )}&lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`
           );
 
-          if (!res.ok) throw new Error("Failed to fetch");
+          if (!res.ok) throw new Error("Failed");
 
           const data = await res.json();
 
@@ -67,9 +66,7 @@ export default function SearchClient() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-10">
-      <h2 className="text-2xl font-semibold mb-6">
-        Search books near you
-      </h2>
+      <h2 className="text-2xl font-semibold mb-6">Search books near you</h2>
 
       <SearchBar
         query={query}
