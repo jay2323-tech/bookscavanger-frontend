@@ -1,5 +1,6 @@
 "use client";
 
+import { supabase } from "@/app/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -14,68 +15,89 @@ export default function AdminDashboard() {
   const router = useRouter();
   const [stats, setStats] = useState<Stats | null>(null);
   const [analytics, setAnalytics] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const fetchAnalytics = async (token: string) => {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/analytics`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-      }
-    );
-    const data = await res.json();
-    setAnalytics(data);
-  };
-
   useEffect(() => {
-    const token = localStorage.getItem("admin_token");
+    let mounted = true;
 
-    if (!token) {
-      router.push("/admin/login");
-      return;
-    }
+    const init = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-    const fetchStats = async () => {
+      if (!session) {
+        router.replace("/admin/login");
+        return;
+      }
+
+      if (session.user.user_metadata?.role !== "admin") {
+        await supabase.auth.signOut();
+        router.replace("/admin/login");
+        return;
+      }
+
       try {
-        const res = await fetch(
+        const token = session.access_token;
+
+        const statsRes = await fetch(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/stats`,
           {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
+            headers: { Authorization: `Bearer ${token}` },
           }
         );
 
-        if (!res.ok) throw new Error("Unauthorized");
+        const analyticsRes = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/analytics`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
 
-        const data = await res.json();
-        setStats(data);
-        fetchAnalytics(token);
+        if (!statsRes.ok || !analyticsRes.ok) {
+          throw new Error("Unauthorized");
+        }
+
+        if (mounted) {
+          setStats(await statsRes.json());
+          setAnalytics(await analyticsRes.json());
+          setLoading(false);
+        }
       } catch (err) {
         console.error(err);
-        setError("Access denied or failed to load admin data");
-        localStorage.removeItem("admin_token");
-        router.push("/admin/login");
+        setError("Failed to load admin data");
       }
     };
 
-    fetchStats();
-  }, []);
+    init();
 
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) {
+        router.replace("/admin/login");
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [router]);
+
+  if (loading) return <p className="p-10 text-white">Loading Admin Dashboard...</p>;
   if (error) return <p className="p-10 text-red-500">{error}</p>;
-  if (!stats) return <p className="p-10">Loading Admin Dashboard...</p>;
 
   return (
     <main className="min-h-screen bg-[#0F172A] text-white p-10">
       <h1 className="text-3xl text-[#D4AF37] mb-6">Admin Dashboard</h1>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card title="Total Libraries" value={stats.totalLibraries} />
-        <Card title="Total Books" value={stats.totalBooks} />
-        <Card title="Platform Status" value={stats.status} />
+        <Card title="Total Libraries" value={stats!.totalLibraries} />
+        <Card title="Total Books" value={stats!.totalBooks} />
+        <Card title="Platform Status" value={stats!.status} />
       </div>
 
-      {/* 📊 Recent Activity */}
       <h2 className="mt-10 text-2xl text-[#D4AF37]">Recent Activity</h2>
 
       <ul className="mt-4 space-y-2">
@@ -89,9 +111,9 @@ export default function AdminDashboard() {
 
       <button
         className="mt-10 bg-red-500 px-4 py-2 rounded"
-        onClick={() => {
-          localStorage.removeItem("admin_token");
-          router.push("/admin/login");
+        onClick={async () => {
+          await supabase.auth.signOut();
+          router.replace("/admin/login");
         }}
       >
         Logout Admin
