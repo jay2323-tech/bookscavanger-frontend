@@ -10,10 +10,19 @@ type Stats = {
   status: string;
 };
 
+type PendingLibrarian = {
+  id: string; // libraryId
+  email: string | null;
+  name: string;
+  supabase_user_id: string | null;
+};
+
 export default function AdminDashboard() {
   const router = useRouter();
+
   const [stats, setStats] = useState<Stats | null>(null);
   const [analytics, setAnalytics] = useState<any[]>([]);
+  const [pending, setPending] = useState<PendingLibrarian[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -39,27 +48,29 @@ export default function AdminDashboard() {
       try {
         const token = session.access_token;
 
-        const statsRes = await fetch(
-          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/stats`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
+        const [statsRes, analyticsRes, pendingRes] = await Promise.all([
+          fetch(
+            `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/stats`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          ),
+          fetch(
+            `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/analytics`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          ),
+          fetch(
+            `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/pending-librarians`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          ),
+        ]);
 
-        const analyticsRes = await fetch(
-          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/analytics`,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
-
-        if (!statsRes.ok || !analyticsRes.ok) {
+        if (!statsRes.ok || !analyticsRes.ok || !pendingRes.ok) {
           throw new Error("Unauthorized");
         }
 
         if (mounted) {
           setStats(await statsRes.json());
           setAnalytics(await analyticsRes.json());
+          setPending(await pendingRes.json());
           setLoading(false);
         }
       } catch (err) {
@@ -75,6 +86,36 @@ export default function AdminDashboard() {
     };
   }, [router]);
 
+  const approveLibrarian = async (libraryId: string) => {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session) return;
+
+  const token = session.access_token;
+
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/approve-librarian`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ libraryId }),
+    }
+  );
+
+  if (!res.ok) {
+    alert("Approval failed");
+    return;
+  }
+
+  // remove approved library from UI
+  setPending((prev) => prev.filter((p) => p.id !== libraryId));
+};
+
   if (loading)
     return <p className="p-10 text-white">Loading Admin Dashboard...</p>;
   if (error) return <p className="p-10 text-red-500">{error}</p>;
@@ -83,13 +124,45 @@ export default function AdminDashboard() {
     <main className="min-h-screen bg-[#0F172A] text-white p-10">
       <h1 className="text-3xl text-[#D4AF37] mb-6">Admin Dashboard</h1>
 
+      {/* STATS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card title="Total Libraries" value={stats!.totalLibraries} />
         <Card title="Total Books" value={stats!.totalBooks} />
         <Card title="Platform Status" value={stats!.status} />
       </div>
 
-      <h2 className="mt-10 text-2xl text-[#D4AF37]">Recent Activity</h2>
+      {/* PENDING LIBRARIANS */}
+      <h2 className="mt-12 text-2xl text-[#D4AF37]">
+        Pending Librarian Approvals
+      </h2>
+
+      {pending.length === 0 && (
+        <p className="text-gray-400 mt-4">No pending requests 🎉</p>
+      )}
+
+      <div className="mt-4 space-y-3">
+        {pending.map((p) => (
+          <div
+            key={p.id}
+            className="bg-gray-800 p-4 rounded flex justify-between items-center"
+          >
+            <div>
+              <p className="font-semibold">{p.name}</p>
+              <p className="text-sm text-gray-400">{p.email}</p>
+            </div>
+
+            <button
+              className="bg-green-600 px-4 py-2 rounded"
+              onClick={() => approveLibrarian(p.id)}
+            >
+              Approve
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* ANALYTICS */}
+      <h2 className="mt-12 text-2xl text-[#D4AF37]">Recent Activity</h2>
 
       <ul className="mt-4 space-y-2">
         {analytics.map((a, i) => (
@@ -100,6 +173,7 @@ export default function AdminDashboard() {
         ))}
       </ul>
 
+      {/* LOGOUT */}
       <button
         className="mt-10 bg-red-500 px-4 py-2 rounded"
         onClick={async () => {
