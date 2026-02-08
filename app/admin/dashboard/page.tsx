@@ -7,7 +7,6 @@ import { useEffect, useState } from "react";
 type Stats = {
   totalLibraries: number;
   totalBooks: number;
-  platform: string;
   status: string;
 };
 
@@ -71,21 +70,13 @@ export default function AdminDashboard() {
 
     init();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) {
-        router.replace("/admin/login");
-      }
-    });
-
     return () => {
       mounted = false;
-      subscription.unsubscribe();
     };
   }, [router]);
 
-  if (loading) return <p className="p-10 text-white">Loading Admin Dashboard...</p>;
+  if (loading)
+    return <p className="p-10 text-white">Loading Admin Dashboard...</p>;
   if (error) return <p className="p-10 text-red-500">{error}</p>;
 
   return (
