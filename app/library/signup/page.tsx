@@ -26,6 +26,12 @@ export default function SignupPage() {
   const handleSignup = async () => {
     setError("");
 
+    // ✅ Password checks
+    if (form.password.length < 8) {
+      setError("Password must be at least 8 characters");
+      return;
+    }
+
     if (form.password !== form.confirmPassword) {
       setError("Passwords do not match");
       return;
@@ -33,32 +39,39 @@ export default function SignupPage() {
 
     setLoading(true);
 
-    // 🔒 CRITICAL: librarian → pending_librarian
-    const finalRole =
-      role === "librarian" ? "pending_librarian" : "customer";
+    try {
+      // 🔒 Role mapping
+      const finalRole =
+        role === "librarian" ? "pending_librarian" : "customer";
 
-    const { error } = await supabase.auth.signUp({
-      email: form.email,
-      password: form.password,
-      options: {
-        data: {
-          role: finalRole,
-          name: form.name,
-          age: role === "customer" ? form.age : null,
-          latitude: role === "librarian" ? form.latitude : null,
-          longitude: role === "librarian" ? form.longitude : null,
+      // ✅ ONLY SAFE METADATA
+      const { error } = await supabase.auth.signUp({
+        email: form.email,
+        password: form.password,
+        options: {
+          data: {
+            role: finalRole,
+            name: form.name,
+          },
         },
-      },
-    });
+      });
 
-    setLoading(false);
+      if (error) {
+        throw error;
+      }
 
-    if (error) {
-      setError(error.message);
-      return;
+      // ✅ Redirects
+      if (finalRole === "pending_librarian") {
+        router.replace("/library/pending");
+      } else {
+        router.replace("/library/login");
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Signup failed");
+    } finally {
+      setLoading(false);
     }
-
-    router.replace("/library/login");
   };
 
   return (
@@ -84,16 +97,6 @@ export default function SignupPage() {
           onChange={(e) => setForm({ ...form, email: e.target.value })}
         />
 
-        {role === "customer" && (
-          <input
-            placeholder="Age"
-            type="number"
-            className="w-full mb-4 px-4 py-3 rounded bg-gray-800"
-            value={form.age}
-            onChange={(e) => setForm({ ...form, age: e.target.value })}
-          />
-        )}
-
         <input
           type="password"
           placeholder="Password"
@@ -111,28 +114,6 @@ export default function SignupPage() {
             setForm({ ...form, confirmPassword: e.target.value })
           }
         />
-
-        {role === "librarian" && (
-          <>
-            <input
-              placeholder="Latitude"
-              className="w-full mb-4 px-4 py-3 rounded bg-gray-800"
-              value={form.latitude}
-              onChange={(e) =>
-                setForm({ ...form, latitude: e.target.value })
-              }
-            />
-
-            <input
-              placeholder="Longitude"
-              className="w-full mb-4 px-4 py-3 rounded bg-gray-800"
-              value={form.longitude}
-              onChange={(e) =>
-                setForm({ ...form, longitude: e.target.value })
-              }
-            />
-          </>
-        )}
 
         {error && <p className="text-red-400 text-sm mb-3">{error}</p>}
 
