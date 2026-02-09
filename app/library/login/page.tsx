@@ -7,7 +7,6 @@ import { useState } from "react";
 
 export default function LibraryLoginPage() {
   const router = useRouter();
-
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -17,42 +16,46 @@ export default function LibraryLoginPage() {
     setError("");
     setLoading(true);
 
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { data, error: loginErr } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
-    setLoading(false);
-
-    if (error) {
-      setError(error.message);
+    if (loginErr) {
+      setLoading(false);
+      setError(loginErr.message);
       return;
     }
 
-    const role = data.user?.user_metadata?.role;
+    const user = data.user;
+    const role = user?.user_metadata?.role;
 
-    if (role === "customer" || role === "librarian") {
-      // ✅ LOGIN SUCCESS → HOME
+    // Check if it's a librarian and then check their approval status
+    if (role === "librarian") {
+      const { data: library, error: libErr } = await supabase
+        .from("libraries")
+        .select("approved")
+        .eq("supabase_user_id", user.id)
+        .single();
+
+      if (libErr || !library?.approved) {
+        setLoading(false);
+        router.replace("/library/pending");
+        return;
+      }
       router.replace("/");
-      return;
+    } else if (role === "customer") {
+      router.replace("/");
+    } else {
+      setLoading(false);
+      setError("User role not recognized.");
     }
-
-    if (role === "pending_librarian") {
-      // ⏳ Waiting for approval
-      router.replace("/library/pending");
-      return;
-    }
-
-    setError("User role not configured. Contact support.");
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 bg-[#0F172A]">
       <div className="w-full max-w-md bg-gray-900 border border-gray-800 rounded-xl p-8 text-white">
-        <h1 className="text-2xl font-bold text-[#D4AF37] mb-4 text-center">
-          Login to BookScavenger
-        </h1>
-
+        <h1 className="text-2xl font-bold text-[#D4AF37] mb-4 text-center">Login</h1>
         <input
           type="email"
           placeholder="Email"
@@ -60,7 +63,6 @@ export default function LibraryLoginPage() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
-
         <input
           type="password"
           placeholder="Password"
@@ -68,9 +70,7 @@ export default function LibraryLoginPage() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
-
         {error && <p className="text-red-400 text-sm mb-3">{error}</p>}
-
         <button
           onClick={handleLogin}
           disabled={loading}
@@ -78,12 +78,8 @@ export default function LibraryLoginPage() {
         >
           {loading ? "Logging in..." : "Login"}
         </button>
-
         <p className="text-center text-sm text-gray-400 mt-6">
-          Don’t have an account?{" "}
-          <Link href="/library/signup" className="text-[#D4AF37]">
-            Sign up
-          </Link>
+          Don’t have an account? <Link href="/library/signup" className="text-[#D4AF37]">Sign up</Link>
         </p>
       </div>
     </div>

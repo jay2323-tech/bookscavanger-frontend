@@ -1,45 +1,45 @@
-export async function authFetch(
-  url: string,
-  options: RequestInit = {}
-) {
-  const accessToken = localStorage.getItem("access_token");
+import { supabase } from "@/app/lib/supabaseClient";
 
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      ...(options.headers || {}),
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-  });
+/**
+ * A wrapper around fetch that automatically injects the Supabase JWT.
+ * Use this for protected routes like /api/library/my-books.
+ */
+export async function authFetch(url, options = {}) {
+  // 1. Get the current session from Supabase SDK
+  // This is the source of truth for your JWT
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  
+  const accessToken = session?.access_token;
 
-  // 🔁 Auto refresh token
-  if (res.status === 401) {
-    const refreshed = await refreshToken();
-    if (!refreshed) throw new Error("Session expired");
+  // 2. Prepare headers
+  const headers = {
+    "Content-Type": "application/json",
+    ...(options.headers || {}),
+  };
 
-    return authFetch(url, options);
+  // 3. ONLY add Authorization if the token actually exists
+  // This prevents sending "Bearer null" or "Bearer undefined"
+  if (accessToken) {
+    headers["Authorization"] = `Bearer ${accessToken}`;
   }
 
-  return res;
-}
+  try {
+    const res = await fetch(url, {
+      ...options,
+      headers,
+    });
 
-async function refreshToken() {
-  const refreshToken = localStorage.getItem("refresh_token");
-  if (!refreshToken) return false;
-
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/refresh`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken }),
+    // 4. Handle Unauthorized (e.g., if the user was deleted or banned)
+    if (res.status === 401) {
+      console.warn("Unauthorized request. Redirecting to login...");
+      // Optional: Clear session and redirect
+      // await supabase.auth.signOut();
+      // window.location.href = "/library/login";
     }
-  );
 
-  if (!res.ok) return false;
-
-  const data = await res.json();
-  localStorage.setItem("access_token", data.accessToken);
-  return true;
+    return res;
+  } catch (err) {
+    console.error("authFetch Error:", err);
+    throw err;
+  }
 }
