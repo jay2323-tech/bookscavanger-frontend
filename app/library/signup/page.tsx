@@ -18,15 +18,12 @@ export default function SignupPage() {
     email: "",
     password: "",
     confirmPassword: "",
-    age: "",
-    latitude: "",
-    longitude: "",
   });
 
   const handleSignup = async () => {
     setError("");
 
-    // ✅ Password checks
+    // ✅ Password validation
     if (form.password.length < 8) {
       setError("Password must be at least 8 characters");
       return;
@@ -39,38 +36,30 @@ export default function SignupPage() {
 
     setLoading(true);
 
-    try {
-      // 🔒 Role mapping
-      const finalRole =
-        role === "librarian" ? "pending_librarian" : "customer";
-
-      // ✅ ONLY SAFE METADATA
-      const { error } = await supabase.auth.signUp({
-        email: form.email,
-        password: form.password,
-        options: {
-          data: {
-            role: finalRole,
-            name: form.name,
-          },
+    const { error } = await supabase.auth.signUp({
+      email: form.email,
+      password: form.password,
+      options: {
+        data: {
+          // ✅ ONLY VALID ENUM VALUES
+          role: role === "librarian" ? "librarian" : "customer",
+          name: form.name,
         },
-      });
+      },
+    });
 
-      if (error) {
-        throw error;
-      }
+    setLoading(false);
 
-      // ✅ Redirects
-      if (finalRole === "pending_librarian") {
-        router.replace("/library/pending");
-      } else {
-        router.replace("/library/login");
-      }
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || "Signup failed");
-    } finally {
-      setLoading(false);
+    if (error) {
+      setError(error.message);
+      return;
+    }
+
+    // ✅ Redirects
+    if (role === "librarian") {
+      router.push("/library/pending");
+    } else {
+      router.push("/library/login");
     }
   };
 
