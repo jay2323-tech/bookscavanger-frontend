@@ -24,16 +24,20 @@ export default function SignupPage() {
   const handleSignup = async () => {
     setError("");
 
-    if (form.password.length < 8)
-      return setError("Password must be at least 8 characters");
+    if (form.password.length < 8) {
+      setError("Password must be at least 8 characters");
+      return;
+    }
 
-    if (form.password !== form.confirmPassword)
-      return setError("Passwords do not match");
+    if (form.password !== form.confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
 
     setLoading(true);
 
     try {
-      // 🟢 CUSTOMER SIGNUP → Supabase directly
+      // 🟢 CUSTOMER SIGNUP (Supabase)
       if (role === "customer") {
         const { error } = await supabase.auth.signUp({
           email: form.email,
@@ -52,12 +56,15 @@ export default function SignupPage() {
         return;
       }
 
-      // 🔵 LIBRARIAN SIGNUP → Backend
+      // 🔵 LIBRARIAN SIGNUP (Backend – PUBLIC)
       const res = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/signup`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            // ❌ NO Authorization header on purpose
+          },
           body: JSON.stringify({
             name: form.name,
             email: form.email,
