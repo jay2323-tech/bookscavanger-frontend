@@ -10,17 +10,8 @@ export default function PendingApprovalPage() {
   useEffect(() => {
     const check = async () => {
       const { data } = await supabase.auth.getUser();
-
-      if (!data.user) {
-        router.replace("/library/login");
-        return;
-      }
-
-      if (data.user.user_metadata?.role !== "pending_librarian") {
-        router.replace("/");
-      }
+      if (!data.user) router.replace("/library/login");
     };
-
     check();
   }, [router]);
 

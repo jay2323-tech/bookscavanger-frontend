@@ -6,10 +6,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+type Role = "customer" | "librarian";
+
 export default function SignupPage() {
   const router = useRouter();
 
-  const [role, setRole] = useState<"librarian" | "customer">("customer");
+  const [role, setRole] = useState<Role>("customer");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -23,7 +25,6 @@ export default function SignupPage() {
   const handleSignup = async () => {
     setError("");
 
-    // ✅ Password validation
     if (form.password.length < 8) {
       setError("Password must be at least 8 characters");
       return;
@@ -36,36 +37,55 @@ export default function SignupPage() {
 
     setLoading(true);
 
-    const { error } = await supabase.auth.signUp({
-      email: form.email,
-      password: form.password,
-      options: {
-        data: {
-          // ✅ ONLY VALID ENUM VALUES
-          role: role === "librarian" ? "librarian" : "customer",
-          name: form.name,
+    try {
+      // 🔒 Librarian signup → backend ONLY
+      if (role === "librarian") {
+        const res = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/signup`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: form.name,
+              email: form.email,
+              password: form.password,
+            }),
+          }
+        );
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Signup failed");
+
+        router.push("/library/pending");
+        return;
+      }
+
+      // ✅ Customer signup → Supabase directly
+      const { error } = await supabase.auth.signUp({
+        email: form.email,
+        password: form.password,
+        options: {
+          data: {
+            role: "customer",
+            name: form.name,
+          },
         },
-      },
-    });
+      });
 
-    setLoading(false);
+      if (error) throw error;
 
-    if (error) {
-      setError(error.message);
-      return;
-    }
-
-    // ✅ Redirects
-    if (role === "librarian") {
-      router.push("/library/pending");
-    } else {
       router.push("/library/login");
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Signup failed");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 bg-[#0F172A]">
-      <div className="w-full max-w-md bg-gray-900 border border-gray-800 rounded-xl p-8 text-white">
+    <div className="min-h-screen flex items-center justify-center bg-[#0F172A]">
+      <div className="w-full max-w-md bg-gray-900 p-8 rounded-xl text-white">
         <h1 className="text-2xl font-bold text-[#D4AF37] mb-4">
           Create an Account
         </h1>
@@ -73,7 +93,7 @@ export default function SignupPage() {
         <RoleSelector role={role} setRole={setRole} />
 
         <input
-          placeholder={role === "librarian" ? "Library Name" : "Full Name"}
+          placeholder="Name"
           className="w-full mb-4 px-4 py-3 rounded bg-gray-800"
           value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -104,7 +124,7 @@ export default function SignupPage() {
           }
         />
 
-        {error && <p className="text-red-400 text-sm mb-3">{error}</p>}
+        {error && <p className="text-red-400 mb-3">{error}</p>}
 
         <button
           onClick={handleSignup}
