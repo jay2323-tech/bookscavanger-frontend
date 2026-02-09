@@ -1,24 +1,22 @@
 import { supabase } from "@/app/lib/supabaseClient";
 
 /**
- * A wrapper around fetch that automatically injects the Supabase JWT.
+ * A type-safe wrapper around fetch that automatically injects the Supabase JWT.
  * Use this for protected routes like /api/library/my-books.
  */
-export async function authFetch(url, options = {}) {
+export async function authFetch(url: string, options: RequestInit = {}) {
   // 1. Get the current session from Supabase SDK
-  // This is the source of truth for your JWT
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+  const { data: { session } } = await supabase.auth.getSession();
   
   const accessToken = session?.access_token;
 
-  // 2. Prepare headers
-  const headers = {
+  // 2. Prepare headers with correct TypeScript types
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...(options.headers || {}),
+    ...(options.headers as Record<string, string> || {}),
   };
 
   // 3. ONLY add Authorization if the token actually exists
-  // This prevents sending "Bearer null" or "Bearer undefined"
   if (accessToken) {
     headers["Authorization"] = `Bearer ${accessToken}`;
   }
@@ -29,12 +27,10 @@ export async function authFetch(url, options = {}) {
       headers,
     });
 
-    // 4. Handle Unauthorized (e.g., if the user was deleted or banned)
+    // 4. Handle Unauthorized
     if (res.status === 401) {
       console.warn("Unauthorized request. Redirecting to login...");
-      // Optional: Clear session and redirect
-      // await supabase.auth.signOut();
-      // window.location.href = "/library/login";
+      // Optional: window.location.href = "/library/login";
     }
 
     return res;
