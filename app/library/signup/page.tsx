@@ -21,62 +21,49 @@ export default function SignupPage() {
     confirmPassword: "",
   });
 
+  const signupCustomer = async () => {
+    if (form.password.length < 8)
+      throw new Error("Password must be at least 8 characters");
+
+    if (form.password !== form.confirmPassword)
+      throw new Error("Passwords do not match");
+
+    const { error } = await supabase.auth.signUp({
+      email: form.email,
+      password: form.password,
+      options: {
+        data: {
+          role: "customer",
+          name: form.name,
+        },
+      },
+    });
+
+    if (error) throw error;
+    router.replace("/library/login");
+  };
+
+  const signupLibrarianWithGoogle = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/library/onboarding`,
+      },
+    });
+
+    if (error) throw error;
+  };
+
   const handleSignup = async () => {
     setError("");
-
-    if (form.password.length < 8) {
-      setError("Password must be at least 8 characters");
-      return;
-    }
-
-    if (form.password !== form.confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
-
     setLoading(true);
 
     try {
-      // 🟢 CUSTOMER SIGNUP (Supabase)
       if (role === "customer") {
-        const { error } = await supabase.auth.signUp({
-          email: form.email,
-          password: form.password,
-          options: {
-            data: {
-              role: "customer",
-              name: form.name,
-            },
-          },
-        });
-
-        if (error) throw error;
-
-        router.replace("/library/login");
-        return;
+        await signupCustomer();
+      } else {
+        await signupLibrarianWithGoogle();
       }
-
-      // 🔵 LIBRARIAN SIGNUP (Backend – PUBLIC)
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/signup`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            // ❌ NO Authorization header on purpose
-          },
-          body: JSON.stringify({
-            name: form.name,
-            email: form.email,
-            password: form.password,
-          }),
-        }
-      );
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Signup failed");
-
-      router.replace("/library/pending");
     } catch (err: any) {
       setError(err.message || "Signup failed");
     } finally {
@@ -93,38 +80,42 @@ export default function SignupPage() {
 
         <RoleSelector role={role} setRole={setRole} />
 
-        <input
-          placeholder={role === "librarian" ? "Library Name" : "Full Name"}
-          className="w-full mb-4 px-4 py-3 rounded bg-gray-800"
-          value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-        />
+        {role === "customer" && (
+          <>
+            <input
+              placeholder="Full Name"
+              className="w-full mb-4 px-4 py-3 rounded bg-gray-800"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+            />
 
-        <input
-          type="email"
-          placeholder="Email"
-          className="w-full mb-4 px-4 py-3 rounded bg-gray-800"
-          value={form.email}
-          onChange={(e) => setForm({ ...form, email: e.target.value })}
-        />
+            <input
+              type="email"
+              placeholder="Email"
+              className="w-full mb-4 px-4 py-3 rounded bg-gray-800"
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+            />
 
-        <input
-          type="password"
-          placeholder="Password"
-          className="w-full mb-4 px-4 py-3 rounded bg-gray-800"
-          value={form.password}
-          onChange={(e) => setForm({ ...form, password: e.target.value })}
-        />
+            <input
+              type="password"
+              placeholder="Password"
+              className="w-full mb-4 px-4 py-3 rounded bg-gray-800"
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+            />
 
-        <input
-          type="password"
-          placeholder="Confirm Password"
-          className="w-full mb-4 px-4 py-3 rounded bg-gray-800"
-          value={form.confirmPassword}
-          onChange={(e) =>
-            setForm({ ...form, confirmPassword: e.target.value })
-          }
-        />
+            <input
+              type="password"
+              placeholder="Confirm Password"
+              className="w-full mb-4 px-4 py-3 rounded bg-gray-800"
+              value={form.confirmPassword}
+              onChange={(e) =>
+                setForm({ ...form, confirmPassword: e.target.value })
+              }
+            />
+          </>
+        )}
 
         {error && <p className="text-red-400 text-sm mb-3">{error}</p>}
 
@@ -133,7 +124,11 @@ export default function SignupPage() {
           disabled={loading}
           className="w-full bg-[#D4AF37] text-black py-3 rounded-lg font-semibold"
         >
-          {loading ? "Creating account..." : "Sign Up"}
+          {loading
+            ? "Processing..."
+            : role === "librarian"
+              ? "Continue with Google"
+              : "Sign Up"}
         </button>
 
         <p className="text-center text-sm text-gray-400 mt-6">

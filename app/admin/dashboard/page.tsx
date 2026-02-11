@@ -11,7 +11,7 @@ type Stats = {
 };
 
 type PendingLibrarian = {
-  id: string; // libraryId
+  id: string;
   email: string | null;
   name: string;
   supabase_user_id: string | null;
@@ -24,7 +24,6 @@ export default function AdminDashboard() {
   const [analytics, setAnalytics] = useState<any[]>([]);
   const [pending, setPending] = useState<PendingLibrarian[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
 
   useEffect(() => {
     let mounted = true;
@@ -39,33 +38,39 @@ export default function AdminDashboard() {
         return;
       }
 
-      if (session.user.user_metadata?.role !== "admin") {
-        await supabase.auth.signOut();
-        router.replace("/admin/login");
-        return;
-      }
-
       try {
         const token = session.access_token;
 
-        const [statsRes, analyticsRes, pendingRes] = await Promise.all([
-          fetch(
-            `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/stats`,
-            { headers: { Authorization: `Bearer ${token}` } }
-          ),
-          fetch(
-            `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/analytics`,
-            { headers: { Authorization: `Bearer ${token}` } }
-          ),
-          fetch(
-            `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/pending-librarians`,
-            { headers: { Authorization: `Bearer ${token}` } }
-          ),
-        ]);
+        const statsRes = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/stats`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
 
-        if (!statsRes.ok || !analyticsRes.ok || !pendingRes.ok) {
-          throw new Error("Unauthorized");
+        // 🔐 Backend decides admin
+        if (statsRes.status === 401 || statsRes.status === 403) {
+          router.replace("/admin/login");
+          return;
         }
+
+        if (!statsRes.ok) {
+          throw new Error("Failed to load stats");
+        }
+
+        const analyticsRes = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/analytics`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+
+        const pendingRes = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/pending-librarians`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
 
         if (mounted) {
           setStats(await statsRes.json());
@@ -75,7 +80,7 @@ export default function AdminDashboard() {
         }
       } catch (err) {
         console.error(err);
-        setError("Failed to load admin data");
+        router.replace("/admin/login");
       }
     };
 
@@ -87,51 +92,49 @@ export default function AdminDashboard() {
   }, [router]);
 
   const approveLibrarian = async (libraryId: string) => {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-  if (!session) return;
+    if (!session) return;
 
-  const token = session.access_token;
+    const token = session.access_token;
 
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/approve-librarian`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ libraryId }),
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/approve-librarian`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ libraryId }),
+      }
+    );
+
+    if (!res.ok) {
+      alert("Approval failed");
+      return;
     }
-  );
 
-  if (!res.ok) {
-    alert("Approval failed");
-    return;
-  }
-
-  // remove approved library from UI
-  setPending((prev) => prev.filter((p) => p.id !== libraryId));
-};
+    setPending((prev) => prev.filter((p) => p.id !== libraryId));
+  };
 
   if (loading)
     return <p className="p-10 text-white">Loading Admin Dashboard...</p>;
-  if (error) return <p className="p-10 text-red-500">{error}</p>;
 
   return (
     <main className="min-h-screen bg-[#0F172A] text-white p-10">
       <h1 className="text-3xl text-[#D4AF37] mb-6">Admin Dashboard</h1>
 
-      {/* STATS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card title="Total Libraries" value={stats!.totalLibraries} />
-        <Card title="Total Books" value={stats!.totalBooks} />
-        <Card title="Platform Status" value={stats!.status} />
-      </div>
+      {stats && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card title="Total Libraries" value={stats.totalLibraries} />
+          <Card title="Total Books" value={stats.totalBooks} />
+          <Card title="Platform Status" value={stats.status} />
+        </div>
+      )}
 
-      {/* PENDING LIBRARIANS */}
       <h2 className="mt-12 text-2xl text-[#D4AF37]">
         Pending Librarian Approvals
       </h2>
@@ -161,7 +164,6 @@ export default function AdminDashboard() {
         ))}
       </div>
 
-      {/* ANALYTICS */}
       <h2 className="mt-12 text-2xl text-[#D4AF37]">Recent Activity</h2>
 
       <ul className="mt-4 space-y-2">
@@ -173,7 +175,6 @@ export default function AdminDashboard() {
         ))}
       </ul>
 
-      {/* LOGOUT */}
       <button
         className="mt-10 bg-red-500 px-4 py-2 rounded"
         onClick={async () => {

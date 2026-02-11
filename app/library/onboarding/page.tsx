@@ -1,0 +1,113 @@
+"use client";
+
+import { supabase } from "@/app/lib/supabaseClient";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+
+export default function LibrarianOnboardingPage() {
+    const router = useRouter();
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState("");
+
+    const [form, setForm] = useState({
+        name: "",
+        email: "",
+        latitude: "",
+        longitude: "",
+    });
+
+    // Ensure user is logged in
+    useEffect(() => {
+        const checkAuth = async () => {
+            const { data } = await supabase.auth.getUser();
+            if (!data.user) {
+                router.replace("/library/login");
+            }
+        };
+        checkAuth();
+    }, [router]);
+
+    const handleSubmit = async () => {
+        setError("");
+        setLoading(true);
+
+        try {
+            const {
+                data: { user },
+                error: userErr,
+            } = await supabase.auth.getUser();
+
+            if (userErr || !user) {
+                throw new Error("Not authenticated");
+            }
+
+            const { error: insertError } = await supabase
+                .from("libraries")
+                .insert({
+                    supabase_user_id: user.id,
+                    name: form.name,
+                    email: form.email || user.email,
+                    latitude: form.latitude ? Number(form.latitude) : null,
+                    longitude: form.longitude ? Number(form.longitude) : null,
+                    approved: false,
+                    rejected: false,
+                });
+
+            if (insertError) throw insertError;
+
+            router.replace("/library/pending");
+        } catch (err: any) {
+            setError(err.message || "Onboarding failed");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-[#0F172A] px-4">
+            <div className="w-full max-w-md bg-gray-900 p-8 rounded-xl text-white border border-gray-800">
+                <h1 className="text-2xl font-bold text-[#D4AF37] mb-4 text-center">
+                    Librarian Onboarding
+                </h1>
+
+                <input
+                    placeholder="Library Name"
+                    className="w-full mb-4 px-4 py-3 rounded bg-gray-800"
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                />
+
+                <input
+                    placeholder="Contact Email (optional)"
+                    className="w-full mb-4 px-4 py-3 rounded bg-gray-800"
+                    value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                />
+
+                <input
+                    placeholder="Latitude"
+                    className="w-full mb-4 px-4 py-3 rounded bg-gray-800"
+                    value={form.latitude}
+                    onChange={(e) => setForm({ ...form, latitude: e.target.value })}
+                />
+
+                <input
+                    placeholder="Longitude"
+                    className="w-full mb-4 px-4 py-3 rounded bg-gray-800"
+                    value={form.longitude}
+                    onChange={(e) => setForm({ ...form, longitude: e.target.value })}
+                />
+
+                {error && <p className="text-red-400 text-sm mb-3">{error}</p>}
+
+                <button
+                    onClick={handleSubmit}
+                    disabled={loading}
+                    className="w-full bg-[#D4AF37] text-black py-3 rounded-lg font-semibold"
+                >
+                    {loading ? "Submitting..." : "Submit for Approval"}
+                </button>
+            </div>
+        </div>
+    );
+}
