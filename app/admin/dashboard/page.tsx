@@ -33,7 +33,15 @@ export default function AdminDashboard() {
         data: { session },
       } = await supabase.auth.getSession();
 
+      // 🚫 Not logged in
       if (!session) {
+        router.replace("/admin/login");
+        return;
+      }
+
+      // 🚫 Not admin (metadata check - UI level only)
+      if (session.user.user_metadata?.role !== "admin") {
+        await supabase.auth.signOut();
         router.replace("/admin/login");
         return;
       }
@@ -48,8 +56,9 @@ export default function AdminDashboard() {
           }
         );
 
-        // 🔐 Backend decides admin
+        // 🔐 Backend still decides
         if (statsRes.status === 401 || statsRes.status === 403) {
+          await supabase.auth.signOut();
           router.replace("/admin/login");
           return;
         }
@@ -80,6 +89,7 @@ export default function AdminDashboard() {
         }
       } catch (err) {
         console.error(err);
+        await supabase.auth.signOut();
         router.replace("/admin/login");
       }
     };
@@ -120,8 +130,9 @@ export default function AdminDashboard() {
     setPending((prev) => prev.filter((p) => p.id !== libraryId));
   };
 
-  if (loading)
+  if (loading) {
     return <p className="p-10 text-white">Loading Admin Dashboard...</p>;
+  }
 
   return (
     <main className="min-h-screen bg-[#0F172A] text-white p-10">
