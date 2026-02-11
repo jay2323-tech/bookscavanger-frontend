@@ -39,16 +39,10 @@ export default function AdminDashboard() {
         return;
       }
 
-      // 🚫 Not admin (metadata check - UI level only)
-      if (session.user.user_metadata?.role !== "admin") {
-        await supabase.auth.signOut();
-        router.replace("/admin/login");
-        return;
-      }
-
       try {
         const token = session.access_token;
 
+        // Backend is the ONLY authority for admin access
         const statsRes = await fetch(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/stats`,
           {
@@ -56,7 +50,6 @@ export default function AdminDashboard() {
           }
         );
 
-        // 🔐 Backend still decides
         if (statsRes.status === 401 || statsRes.status === 403) {
           await supabase.auth.signOut();
           router.replace("/admin/login");
@@ -81,6 +74,10 @@ export default function AdminDashboard() {
           }
         );
 
+        if (!analyticsRes.ok || !pendingRes.ok) {
+          throw new Error("Failed to load admin data");
+        }
+
         if (mounted) {
           setStats(await statsRes.json());
           setAnalytics(await analyticsRes.json());
@@ -88,7 +85,7 @@ export default function AdminDashboard() {
           setLoading(false);
         }
       } catch (err) {
-        console.error(err);
+        console.error("Admin dashboard error:", err);
         await supabase.auth.signOut();
         router.replace("/admin/login");
       }
