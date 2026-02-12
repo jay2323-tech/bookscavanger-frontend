@@ -14,7 +14,7 @@ export default function LibraryLoginPage() {
   const [error, setError] = useState("");
 
   // =========================================================
-  // 🔐 EMAIL/PASSWORD LOGIN (Customers)
+  // 🔐 EMAIL/PASSWORD LOGIN
   // =========================================================
   const handlePasswordLogin = async () => {
     setError("");
@@ -38,7 +38,7 @@ export default function LibraryLoginPage() {
   };
 
   // =========================================================
-  // 🌍 GOOGLE LOGIN
+  // 🌍 GOOGLE LOGIN (FIXED REDIRECT)
   // =========================================================
   const handleGoogleLogin = async () => {
     setError("");
@@ -48,7 +48,10 @@ export default function LibraryLoginPage() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/library/oauth-callback`,
+          redirectTo:
+            process.env.NODE_ENV === "development"
+              ? "http://localhost:3000/library/oauth-callback"
+              : "https://lexoria-frontend-phi.vercel.app/library/oauth-callback",
         },
       });
 
@@ -91,6 +94,7 @@ export default function LibraryLoginPage() {
         return;
       }
 
+      // ✅ Approved librarian
       router.replace("/");
       return;
     }
@@ -118,7 +122,7 @@ export default function LibraryLoginPage() {
           disabled={loading}
           className="w-full mb-4 bg-white text-black py-3 rounded-lg font-semibold"
         >
-          Continue with Google
+          {loading ? "Redirecting..." : "Continue with Google"}
         </button>
 
         <div className="text-center text-gray-500 text-sm mb-4">OR</div>
