@@ -28,6 +28,7 @@ export default function LibraryLoginPage() {
         });
 
       if (loginErr) throw loginErr;
+      if (!data.user) throw new Error("Authentication failed.");
 
       await handlePostLogin(data.user);
     } catch (err: any) {
@@ -38,7 +39,7 @@ export default function LibraryLoginPage() {
   };
 
   // =========================================================
-  // 🌍 GOOGLE LOGIN (FIXED REDIRECT)
+  // 🌍 GOOGLE LOGIN
   // =========================================================
   const handleGoogleLogin = async () => {
     setError("");
@@ -63,14 +64,33 @@ export default function LibraryLoginPage() {
   };
 
   // =========================================================
-  // 🎯 ROLE + APPROVAL CHECK
+  // 🎯 ROLE + APPROVAL CHECK (DATABASE IS SOURCE OF TRUTH)
   // =========================================================
   const handlePostLogin = async (user: any) => {
-    if (!user) throw new Error("Authentication failed.");
+    // 1️⃣ Get role from profiles table
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
 
-    const role = user.user_metadata?.role;
+    if (profileError || !profile) {
+      throw new Error("Profile not found.");
+    }
 
-    // 🔵 Librarian flow
+    const role = profile.role;
+
+    // =========================
+    // 👑 ADMIN FLOW
+    // =========================
+    if (role === "admin") {
+      router.replace("/admin/dashboard");
+      return;
+    }
+
+    // =========================
+    // 📚 LIBRARIAN FLOW
+    // =========================
     if (role === "librarian") {
       const { data: library, error: libErr } = await supabase
         .from("libraries")
@@ -78,8 +98,13 @@ export default function LibraryLoginPage() {
         .eq("supabase_user_id", user.id)
         .maybeSingle();
 
-      if (libErr || !library) {
-        router.replace("/library/pending");
+      if (libErr) {
+        throw new Error("Failed to fetch library.");
+      }
+
+      // 🔥 No library row → onboarding not completed
+      if (!library) {
+        router.replace("/library/onboarding");
         return;
       }
 
@@ -99,7 +124,9 @@ export default function LibraryLoginPage() {
       return;
     }
 
-    // 🟢 Customer flow
+    // =========================
+    // 👤 CUSTOMER FLOW
+    // =========================
     if (role === "customer") {
       router.replace("/");
       return;
@@ -116,7 +143,7 @@ export default function LibraryLoginPage() {
           Login
         </h1>
 
-        {/* ================= GOOGLE LOGIN ================= */}
+        {/* GOOGLE LOGIN */}
         <button
           onClick={handleGoogleLogin}
           disabled={loading}
@@ -127,7 +154,7 @@ export default function LibraryLoginPage() {
 
         <div className="text-center text-gray-500 text-sm mb-4">OR</div>
 
-        {/* ================= EMAIL LOGIN ================= */}
+        {/* EMAIL LOGIN */}
         <input
           type="email"
           placeholder="Email"

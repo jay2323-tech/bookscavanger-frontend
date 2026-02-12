@@ -16,7 +16,7 @@ export default function LibrarianOnboardingPage() {
         longitude: "",
     });
 
-    // Ensure user is logged in
+    // ✅ Ensure user is logged in
     useEffect(() => {
         const checkAuth = async () => {
             const { data } = await supabase.auth.getUser();
@@ -32,29 +32,40 @@ export default function LibrarianOnboardingPage() {
         setLoading(true);
 
         try {
+            // 1️⃣ Get session + token
             const {
-                data: { user },
-                error: userErr,
-            } = await supabase.auth.getUser();
+                data: { session },
+            } = await supabase.auth.getSession();
 
-            if (userErr || !user) {
+            if (!session?.access_token) {
                 throw new Error("Not authenticated");
             }
 
-            const { error: insertError } = await supabase
-                .from("libraries")
-                .insert({
-                    supabase_user_id: user.id,
-                    name: form.name,
-                    email: form.email || user.email,
-                    latitude: form.latitude ? Number(form.latitude) : null,
-                    longitude: form.longitude ? Number(form.longitude) : null,
-                    approved: false,
-                    rejected: false,
-                });
+            // 2️⃣ Call backend endpoint
+            const res = await fetch(
+                `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/library/onboarding`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${session.access_token}`,
+                    },
+                    body: JSON.stringify({
+                        name: form.name,
+                        email: form.email,
+                        latitude: form.latitude,
+                        longitude: form.longitude,
+                    }),
+                }
+            );
 
-            if (insertError) throw insertError;
+            const data = await res.json();
 
+            if (!res.ok) {
+                throw new Error(data.error || "Onboarding failed");
+            }
+
+            // 3️⃣ Redirect to pending
             router.replace("/library/pending");
         } catch (err: any) {
             setError(err.message || "Onboarding failed");
@@ -88,17 +99,23 @@ export default function LibrarianOnboardingPage() {
                     placeholder="Latitude"
                     className="w-full mb-4 px-4 py-3 rounded bg-gray-800"
                     value={form.latitude}
-                    onChange={(e) => setForm({ ...form, latitude: e.target.value })}
+                    onChange={(e) =>
+                        setForm({ ...form, latitude: e.target.value })
+                    }
                 />
 
                 <input
                     placeholder="Longitude"
                     className="w-full mb-4 px-4 py-3 rounded bg-gray-800"
                     value={form.longitude}
-                    onChange={(e) => setForm({ ...form, longitude: e.target.value })}
+                    onChange={(e) =>
+                        setForm({ ...form, longitude: e.target.value })
+                    }
                 />
 
-                {error && <p className="text-red-400 text-sm mb-3">{error}</p>}
+                {error && (
+                    <p className="text-red-400 text-sm mb-3">{error}</p>
+                )}
 
                 <button
                     onClick={handleSubmit}

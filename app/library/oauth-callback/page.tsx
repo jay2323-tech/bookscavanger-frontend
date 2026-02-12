@@ -9,29 +9,58 @@ export default function OAuthCallbackPage() {
 
     useEffect(() => {
         const handleOAuth = async () => {
-            // Wait for Supabase to process OAuth hash
-            const { data: sessionData } = await supabase.auth.getSession();
-            const user = sessionData.session?.user;
+            // 🔐 Ensure session is ready
+            const {
+                data: { session },
+            } = await supabase.auth.getSession();
+
+            const user = session?.user;
 
             if (!user) {
                 router.replace("/library/login");
                 return;
             }
 
-            const role = user.user_metadata?.role;
+            // 🔥 Get role from PROFILES table (source of truth)
+            const { data: profile, error: profileError } = await supabase
+                .from("profiles")
+                .select("role")
+                .eq("id", user.id)
+                .single();
+
+            if (profileError || !profile) {
+                router.replace("/library/login");
+                return;
+            }
+
+            const role = profile.role;
 
             // =========================
-            // 📚 LIBRARIAN FLOW
+            // 👑 ADMIN
+            // =========================
+            if (role === "admin") {
+                router.replace("/admin/dashboard");
+                return;
+            }
+
+            // =========================
+            // 📚 LIBRARIAN
             // =========================
             if (role === "librarian") {
-                const { data: library, error } = await supabase
+                const { data: library, error: libraryError } = await supabase
                     .from("libraries")
                     .select("approved, rejected")
                     .eq("supabase_user_id", user.id)
                     .maybeSingle();
 
-                if (error || !library) {
-                    router.replace("/library/pending");
+                // 🔹 No library row → onboarding not completed
+                if (!library) {
+                    router.replace("/library/onboarding");
+                    return;
+                }
+
+                if (libraryError) {
+                    router.replace("/library/login");
                     return;
                 }
 
@@ -46,21 +75,15 @@ export default function OAuthCallbackPage() {
                     return;
                 }
 
-                // ✅ Approved
+                // ✅ Approved librarian
                 router.replace("/");
                 return;
             }
 
             // =========================
-            // 👤 CUSTOMER FLOW
+            // 👤 CUSTOMER
             // =========================
-            if (role === "customer") {
-                router.replace("/");
-                return;
-            }
-
-            // Unknown role
-            router.replace("/library/login");
+            router.replace("/");
         };
 
         handleOAuth();
