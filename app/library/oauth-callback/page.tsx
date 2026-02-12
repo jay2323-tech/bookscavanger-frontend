@@ -21,7 +21,7 @@ export default function OAuthCallbackPage() {
                 return;
             }
 
-            // 🔥 Get role from PROFILES table (source of truth)
+            // 🔥 SOURCE OF TRUTH → profiles table
             const { data: profile, error: profileError } = await supabase
                 .from("profiles")
                 .select("role")
@@ -35,32 +35,26 @@ export default function OAuthCallbackPage() {
 
             const role = profile.role;
 
-            // =========================
+            // =====================================================
             // 👑 ADMIN
-            // =========================
+            // =====================================================
             if (role === "admin") {
                 router.replace("/admin/dashboard");
                 return;
             }
 
-            // =========================
+            // =====================================================
             // 📚 LIBRARIAN
-            // =========================
+            // =====================================================
             if (role === "librarian") {
-                const { data: library, error: libraryError } = await supabase
+                const { data: library } = await supabase
                     .from("libraries")
                     .select("approved, rejected")
                     .eq("supabase_user_id", user.id)
                     .maybeSingle();
 
-                // 🔹 No library row → onboarding not completed
                 if (!library) {
                     router.replace("/library/onboarding");
-                    return;
-                }
-
-                if (libraryError) {
-                    router.replace("/library/login");
                     return;
                 }
 
@@ -75,14 +69,44 @@ export default function OAuthCallbackPage() {
                     return;
                 }
 
-                // ✅ Approved librarian
                 router.replace("/");
                 return;
             }
 
-            // =========================
+            // =====================================================
             // 👤 CUSTOMER
-            // =========================
+            // =====================================================
+            if (role === "customer") {
+                const { data: library } = await supabase
+                    .from("libraries")
+                    .select("approved, rejected")
+                    .eq("supabase_user_id", user.id)
+                    .maybeSingle();
+
+                // 🔥 CUSTOMER but applied as librarian
+                if (library) {
+                    if (library.rejected) {
+                        await supabase.auth.signOut();
+                        router.replace("/library/rejected");
+                        return;
+                    }
+
+                    if (!library.approved) {
+                        router.replace("/library/pending");
+                        return;
+                    }
+
+                    // Edge case: approved but role not updated
+                    router.replace("/");
+                    return;
+                }
+
+                // Normal customer
+                router.replace("/");
+                return;
+            }
+
+            // Fallback safety
             router.replace("/");
         };
 
