@@ -9,30 +9,41 @@ export default function AdminOAuthCallback() {
 
     useEffect(() => {
         const checkAdmin = async () => {
-            const { data: { session } } = await supabase.auth.getSession();
+            try {
+                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-            if (!session) {
-                router.replace("/admin/login");
-                return;
-            }
-
-            // Let backend verify admin role
-            const res = await fetch(
-                `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/stats`,
-                {
-                    headers: {
-                        Authorization: `Bearer ${session.access_token}`,
-                    },
+                if (sessionError || !session) {
+                    console.error("Session error or not found", sessionError);
+                    await supabase.auth.signOut();
+                    router.replace("/admin/login");
+                    return;
                 }
-            );
 
-            if (res.status === 403 || res.status === 401) {
+                // Let backend verify admin role
+                const res = await fetch(
+                    `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/admin/stats`,
+                    {
+                        headers: {
+                            Authorization: `Bearer ${session.access_token}`,
+                        },
+                    }
+                );
+
+                if (!res.ok) {
+                    console.error("Admin verification failed with status:", res.status);
+                    await supabase.auth.signOut();
+                    router.replace("/admin/login");
+                    return;
+                }
+
+                router.replace("/admin/dashboard");
+            } catch (error) {
+                console.error("Unexpected error during admin check:", error);
                 await supabase.auth.signOut();
                 router.replace("/admin/login");
-                return;
+            } finally {
+                // Loading state handling if applicable
             }
-
-            router.replace("/admin/dashboard");
         };
 
         checkAdmin();
