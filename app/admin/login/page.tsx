@@ -6,60 +6,48 @@ import { useState } from "react";
 
 export default function AdminLoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async () => {
+  const handleGoogleLogin = async () => {
     setError("");
     setLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo:
+          process.env.NODE_ENV === "development"
+            ? "http://localhost:3000/admin/oauth-callback"
+            : "https://lexoria-frontend-phi.vercel.app/admin/oauth-callback",
+      },
     });
-
-    setLoading(false);
 
     if (error) {
       setError(error.message);
-      return;
+      setLoading(false);
     }
-
-    // ✅ Let dashboard decide access
-    router.push("/admin/dashboard");
   };
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-[#0F172A] text-white">
       <div className="bg-white text-black p-8 rounded-xl w-96">
-        <h2 className="text-2xl font-bold mb-4 text-center">Admin Login</h2>
+        <h2 className="text-2xl font-bold mb-6 text-center">
+          Admin Login
+        </h2>
 
-        <input
-          type="email"
-          className="w-full p-2 border mb-3 rounded"
-          placeholder="Admin Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-
-        <input
-          type="password"
-          className="w-full p-2 border mb-3 rounded"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-
-        {error && <p className="text-red-500 text-sm">{error}</p>}
+        {error && (
+          <p className="text-red-500 text-sm mb-3 text-center">
+            {error}
+          </p>
+        )}
 
         <button
-          onClick={handleLogin}
+          onClick={handleGoogleLogin}
           disabled={loading}
-          className="w-full bg-black text-white p-2 rounded mt-3"
+          className="w-full bg-black text-white p-2 rounded"
         >
-          {loading ? "Logging in..." : "Enter Admin Panel"}
+          {loading ? "Redirecting..." : "Continue with Google"}
         </button>
       </div>
     </main>
