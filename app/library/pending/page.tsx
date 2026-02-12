@@ -8,11 +8,49 @@ export default function PendingApprovalPage() {
   const router = useRouter();
 
   useEffect(() => {
-    const check = async () => {
-      const { data } = await supabase.auth.getUser();
-      if (!data.user) router.replace("/library/login");
+    let interval: NodeJS.Timeout;
+
+    const checkApprovalStatus = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const user = session?.user;
+
+      if (!user) {
+        router.replace("/library/login");
+        return;
+      }
+
+      const { data: library, error } = await supabase
+        .from("libraries")
+        .select("approved, rejected")
+        .eq("supabase_user_id", user.id)
+        .maybeSingle();
+
+      if (error) return;
+
+      // 🔴 Rejected
+      if (library?.rejected) {
+        await supabase.auth.signOut();
+        router.replace("/library/rejected");
+        return;
+      }
+
+      // ✅ Approved → go to home
+      if (library?.approved) {
+        router.replace("/");
+        return;
+      }
     };
-    check();
+
+    // Run once immediately
+    checkApprovalStatus();
+
+    // Poll every 3 seconds
+    interval = setInterval(checkApprovalStatus, 3000);
+
+    return () => clearInterval(interval);
   }, [router]);
 
   return (
