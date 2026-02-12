@@ -7,17 +7,20 @@ import { useState } from "react";
 
 export default function LibraryLoginPage() {
   const router = useRouter();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleLogin = async () => {
+  // =========================================================
+  // 🔐 EMAIL/PASSWORD LOGIN (Customers)
+  // =========================================================
+  const handlePasswordLogin = async () => {
     setError("");
     setLoading(true);
 
     try {
-      // 1️⃣ Authenticate user
       const { data, error: loginErr } =
         await supabase.auth.signInWithPassword({
           email,
@@ -26,37 +29,7 @@ export default function LibraryLoginPage() {
 
       if (loginErr) throw loginErr;
 
-      const user = data.user;
-      if (!user) throw new Error("Authentication failed.");
-
-      const role = user.user_metadata?.role;
-
-      // 2️⃣ Librarian flow
-      if (role === "librarian") {
-        const { data: library, error: libErr } = await supabase
-          .from("libraries")
-          .select("approved")
-          .eq("supabase_user_id", user.id)
-          .single();
-
-        // Not approved OR library missing → pending page
-        if (libErr || !library?.approved) {
-          router.replace("/library/pending");
-          return;
-        }
-
-        router.replace("/");
-        return;
-      }
-
-      // 3️⃣ Customer flow
-      if (role === "customer") {
-        router.replace("/");
-        return;
-      }
-
-      // 4️⃣ Fallback
-      throw new Error("User role not recognized.");
+      await handlePostLogin(data.user);
     } catch (err: any) {
       setError(err.message || "Login failed");
     } finally {
@@ -64,13 +37,93 @@ export default function LibraryLoginPage() {
     }
   };
 
+  // =========================================================
+  // 🌍 GOOGLE LOGIN
+  // =========================================================
+  const handleGoogleLogin = async () => {
+    setError("");
+    setLoading(true);
+
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/library/oauth-callback`,
+        },
+      });
+
+      if (error) throw error;
+    } catch (err: any) {
+      setError(err.message || "Google login failed");
+      setLoading(false);
+    }
+  };
+
+  // =========================================================
+  // 🎯 ROLE + APPROVAL CHECK
+  // =========================================================
+  const handlePostLogin = async (user: any) => {
+    if (!user) throw new Error("Authentication failed.");
+
+    const role = user.user_metadata?.role;
+
+    // 🔵 Librarian flow
+    if (role === "librarian") {
+      const { data: library, error: libErr } = await supabase
+        .from("libraries")
+        .select("approved, rejected")
+        .eq("supabase_user_id", user.id)
+        .maybeSingle();
+
+      if (libErr || !library) {
+        router.replace("/library/pending");
+        return;
+      }
+
+      if (library.rejected) {
+        await supabase.auth.signOut();
+        router.replace("/library/rejected");
+        return;
+      }
+
+      if (!library.approved) {
+        router.replace("/library/pending");
+        return;
+      }
+
+      router.replace("/");
+      return;
+    }
+
+    // 🟢 Customer flow
+    if (role === "customer") {
+      router.replace("/");
+      return;
+    }
+
+    throw new Error("User role not recognized.");
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center px-4 bg-[#0F172A]">
       <div className="w-full max-w-md bg-gray-900 border border-gray-800 rounded-xl p-8 text-white">
-        <h1 className="text-2xl font-bold text-[#D4AF37] mb-4 text-center">
+
+        <h1 className="text-2xl font-bold text-[#D4AF37] mb-6 text-center">
           Login
         </h1>
 
+        {/* ================= GOOGLE LOGIN ================= */}
+        <button
+          onClick={handleGoogleLogin}
+          disabled={loading}
+          className="w-full mb-4 bg-white text-black py-3 rounded-lg font-semibold"
+        >
+          Continue with Google
+        </button>
+
+        <div className="text-center text-gray-500 text-sm mb-4">OR</div>
+
+        {/* ================= EMAIL LOGIN ================= */}
         <input
           type="email"
           placeholder="Email"
@@ -90,7 +143,7 @@ export default function LibraryLoginPage() {
         {error && <p className="text-red-400 text-sm mb-3">{error}</p>}
 
         <button
-          onClick={handleLogin}
+          onClick={handlePasswordLogin}
           disabled={loading}
           className="w-full bg-[#D4AF37] text-black py-3 rounded-lg font-semibold"
         >
@@ -103,6 +156,7 @@ export default function LibraryLoginPage() {
             Sign up
           </Link>
         </p>
+
       </div>
     </div>
   );
